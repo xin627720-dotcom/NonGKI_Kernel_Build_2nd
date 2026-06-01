@@ -10,7 +10,7 @@ env:
   DEVICE_CODENAME : "instantnoodle"
 
   CUSTOM_CMDS : "BRAND_SHOW_FLAG=oneplus CLANG_TRIPLE=aarch64-linux-gnu-"
-  EXTRA_CMDS : 'BRAND_SHOW_FLAG=oneplus LD=ld.lld KCFLAGS="-gdwarf-4 -Wno-error -Wno-error=implicit-function-declaration -Wno-error=implicit-int -Wno-error=int-conversion"'
+  EXTRA_CMDS : 'BRAND_SHOW_FLAG=oneplus LD=ld.lld KCFLAGS="-gdwarf-4 -Wno-error -Wno-error=implicit-function-declaration -Wno-error=implicit-int -Wno-error=int-conversion -Wno-unused-but-set-variable -Wno-unused-variable -Wno-unused-function"'
 
   KERNEL_SOURCE : "https://github.com/toraidl/android_kernel_oneplus_sm8250.git"
   KERNEL_BRANCH : "op8t"
@@ -124,6 +124,9 @@ jobs:
           for c in CRYPTO_SHA256_ARM64 CRYPTO_SHA512_ARM64 CRYPTO_SHA1_ARM64_CE CRYPTO_SHA2_ARM64_CE CRYPTO_SHA512_ARM64_CE CRYPTO_SHA3_ARM64 CRYPTO_SM3_ARM64_CE CRYPTO_SM4_ARM64_CE CRYPTO_GHASH_ARM64_CE CRYPTO_CRCT10DIF_ARM64_CE CRYPTO_CRC32_ARM64_CE CRYPTO_CRC32_ARM64 CRYPTO_AES_ARM64 CRYPTO_AES_ARM64_CE CRYPTO_AES_ARM64_CE_CCM CRYPTO_AES_ARM64_CE_BLK CRYPTO_AES_ARM64_NEON_BLK CRYPTO_AES_ARM64_BS CRYPTO_CHACHA20_NEON CRYPTO_POLY1305_NEON CRYPTO_NHPOLY1305_NEON; do echo "# CONFIG_$c is not set" >> ./arch/arm64/configs/${{ env.DEFCONFIG_NAME }}; done
           echo "# CONFIG_KSU_SUSFS_SUS_PATH is not set" >> ./arch/arm64/configs/${{ env.DEFCONFIG_NAME }}
           echo "# CONFIG_KSU_SUSFS_OPEN_REDIRECT is not set" >> ./arch/arm64/configs/${{ env.DEFCONFIG_NAME }}
+          # Re-add the namespace.c SUS_MOUNT include/externs/define that the v2.1 Hunk#1 + susfs_fixed fail to apply on op8t (OPLUS context shift)
+          grep -q "susfs_is_sdcard_android_data_not_decrypted" ./fs/namespace.c || perl -i -0pe 's{#include "internal.h"\n}{#include "internal.h"\n#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT\n#include <linux/susfs_def.h>\nextern bool susfs_is_current_ksu_domain(void);\nextern struct static_key_true susfs_is_sdcard_android_data_not_decrypted;\n#ifndef CL_COPY_MNT_NS\n#define CL_COPY_MNT_NS BIT(25)\n#endif\n#endif\n}' ./fs/namespace.c
+          echo "namespace.c susfs head:"; grep -n "susfs_is_sdcard_android_data_not_decrypted\|CL_COPY_MNT_NS" ./fs/namespace.c | head -3
           # echo "CONFIG_KPROBES=n" >> ./arch/arm64/configs/${{ env.DEFCONFIG_NAME }}
           sed -i 's/# CONFIG_SECCOMP is not set/CONFIG_SECCOMP=y/' ./arch/arm64/configs/${{ env.DEFCONFIG_NAME }}
 
