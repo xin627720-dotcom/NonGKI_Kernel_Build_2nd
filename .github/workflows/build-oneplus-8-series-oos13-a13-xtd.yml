@@ -129,6 +129,9 @@ jobs:
             grep -q "SUSFS_INJECT_MARKER" "$nsf" || perl -i -0pe 's{#include "internal.h"\n}{#include "internal.h"\n/* SUSFS_INJECT_MARKER */\n#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT\n#include <linux/susfs_def.h>\nextern bool susfs_is_current_ksu_domain(void);\nextern struct static_key_true susfs_is_sdcard_android_data_not_decrypted;\nextern bool susfs_hide_sus_mnts_for_non_su_procs;\n#ifndef CL_COPY_MNT_NS\n#define CL_COPY_MNT_NS BIT(25)\n#endif\n#endif\n}' "$nsf"
             echo "inject marker count in $nsf:"; grep -c "SUSFS_INJECT_MARKER" "$nsf"
           done
+          echo "# CONFIG_KSU_SUSFS_SUS_MAP is not set" >> ./arch/arm64/configs/${{ env.DEFCONFIG_NAME }}
+          # v2.1 patch's susfs_get_non_sus_mnt_id_from_mnt def (end-of-namespace.c hunk) fails on op8t -> append it
+          grep -q "susfs_get_non_sus_mnt_id_from_mnt(struct mount" ./fs/namespace.c || printf '%s\n' '#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT' 'int susfs_get_non_sus_mnt_id_from_mnt(struct mount *orig_mnt) {' 'struct mount *mnt = orig_mnt;' 'int mnt_id;' 'lock_mount_hash();' 'for (; mnt && mnt->mnt_parent && mnt != mnt->mnt_parent && mnt->mnt_id >= DEFAULT_KSU_MNT_ID; mnt = mnt->mnt_parent) { }' 'mnt_id = mnt->mnt_id;' 'unlock_mount_hash();' 'return mnt_id;' '}' '#endif' >> ./fs/namespace.c
           # echo "CONFIG_KPROBES=n" >> ./arch/arm64/configs/${{ env.DEFCONFIG_NAME }}
           sed -i 's/# CONFIG_SECCOMP is not set/CONFIG_SECCOMP=y/' ./arch/arm64/configs/${{ env.DEFCONFIG_NAME }}
 
