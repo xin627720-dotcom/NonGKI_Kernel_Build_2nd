@@ -10,7 +10,7 @@ env:
   DEVICE_CODENAME : "instantnoodle"
 
   CUSTOM_CMDS : "BRAND_SHOW_FLAG=oneplus CLANG_TRIPLE=aarch64-linux-gnu-"
-  EXTRA_CMDS : "BRAND_SHOW_FLAG=oneplus LD=ld.lld KCFLAGS=-gdwarf-4"
+  EXTRA_CMDS : 'BRAND_SHOW_FLAG=oneplus LD=ld.lld KCFLAGS="-gdwarf-4 -Wno-error -Wno-error=implicit-function-declaration -Wno-error=implicit-int -Wno-error=int-conversion"'
 
   KERNEL_SOURCE : "https://github.com/toraidl/android_kernel_oneplus_sm8250.git"
   KERNEL_BRANCH : "op8t"
