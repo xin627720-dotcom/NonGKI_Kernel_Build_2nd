@@ -35,18 +35,24 @@ for file in "${KSU_CLEAN_FILES[@]}"; do
     fi
 done
 
-# Removal of SuSFS
+# Removal of SuSFS (use unifdef: correctly strips #ifdef/#ifndef/#else/#endif for SUSFS symbols)
+command -v unifdef >/dev/null 2>&1 || sudo apt-get install -y unifdef >/dev/null 2>&1
+
+SUSFS_UNDEF="-U CONFIG_KSU_SUSFS -U CONFIG_KSU_SUSFS_SUS_PATH -U CONFIG_KSU_SUSFS_SUS_MOUNT -U CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT -U CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT -U CONFIG_KSU_SUSFS_SUS_KSTAT -U CONFIG_KSU_SUSFS_SUS_OVERLAYFS -U CONFIG_KSU_SUSFS_TRY_UMOUNT -U CONFIG_KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT -U CONFIG_KSU_SUSFS_SPOOF_UNAME -U CONFIG_KSU_SUSFS_ENABLE_LOG -U CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS -U CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG -U CONFIG_KSU_SUSFS_OPEN_REDIRECT -U CONFIG_KSU_SUSFS_SUS_SU -U CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT -U CONFIG_KSU_SUSFS_SUS_PATH_LOOP -U CONFIG_KSU_SUSFS_SUS_MAPS"
 
 for file in "${SUSFS_CLEAN_FILES[@]}"; do
-    perl -i -0777 -pe 's/#ifndef CONFIG_KSU_SUSFS[^\n]*\n(.*?)#else\n(.*?)#endif\n/$1/gs; s/#ifdef CONFIG_KSU_SUSFS[^\n]*\n(.*?)#else\n(.*?)#endif\n/$2/gs' "${file}"
-    sed -i '/#ifdef CONFIG_KSU_SUSFS/,/#endif/d' "${file}"
-    sed -i '/#if defined(CONFIG_KSU_SUSFS/,/#endif/d' "${file}"
-    sed -i '/#ifndef CONFIG_KSU_SUSFS/,/#endif/d' "${file}"
-
-    if grep -q "CONFIG_KSU_SUSFS/" "${file}"; then
-        echo "[-] Could not remove SuSFS hook from ${file}."
+    [ -f "${file}" ] || continue
+    unifdef ${SUSFS_UNDEF} "${file}" > "${file}.ud"
+    rc=$?
+    if [ ${rc} -le 1 ]; then
+        mv "${file}.ud" "${file}"
+        echo "[+] unifdef-cleaned SuSFS for ${file} (rc=${rc})."
     else
-        echo "[+] Cleaned SuSFS Hook for ${file}."
+        rm -f "${file}.ud"
+        echo "[-] unifdef error (rc=${rc}) on ${file}; left unchanged."
+    fi
+    if grep -q "CONFIG_KSU_SUSFS" "${file}"; then
+        echo "[-] residual CONFIG_KSU_SUSFS in ${file}:"; grep -n "CONFIG_KSU_SUSFS" "${file}" | head
     fi
 done
 
