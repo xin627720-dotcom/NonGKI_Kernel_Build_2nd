@@ -115,6 +115,8 @@ jobs:
       - name: 🪛 Extra Kernel Options
         run: |
           # Only ${{ env.DEVICE_NAME }} use it.
+          sudo apt-get update -y || true
+          sudo apt-get install -y libz3-4
           cd $GITHUB_WORKSPACE/device_kernel
           echo "CONFIG_CPU_BIG_ENDIAN=n" >> ./arch/arm64/configs/${{ env.DEFCONFIG_NAME }}
           echo "CONFIG_COMPAT_VDSO=y" >> ./arch/arm64/configs/${{ env.DEFCONFIG_NAME }}
