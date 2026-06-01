@@ -26,9 +26,9 @@ done
 # Removal of KernelSU Hook
 
 for file in "${KSU_CLEAN_FILES[@]}"; do
-    sed -i '/#ifdef CONFIG_KSU/,/#endif/d' "${file}"
+    sed -i '/#ifdef CONFIG_KSU\b/,/#endif/d' "${file}"
 
-    if grep -q "CONFIG_KSU" "${file}"; then
+    if grep -q "#ifdef CONFIG_KSU\b" "${file}"; then
         echo "[-] Could not remove KernelSU hook from ${file}."
     else
         echo "[+] Cleaned KernelSU Hook for ${file}."
