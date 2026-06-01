@@ -124,7 +124,7 @@ jobs:
           echo "CONFIG_INIT_STACK_NONE=y" >> ./arch/arm64/configs/${{ env.DEFCONFIG_NAME }}
           echo "# CONFIG_ARM64_LSE_ATOMICS is not set" >> ./arch/arm64/configs/${{ env.DEFCONFIG_NAME }}
           for c in CRYPTO_SHA256_ARM64 CRYPTO_SHA512_ARM64 CRYPTO_SHA1_ARM64_CE CRYPTO_SHA2_ARM64_CE CRYPTO_SHA512_ARM64_CE CRYPTO_SHA3_ARM64 CRYPTO_SM3_ARM64_CE CRYPTO_SM4_ARM64_CE CRYPTO_GHASH_ARM64_CE CRYPTO_CRCT10DIF_ARM64_CE CRYPTO_CRC32_ARM64_CE CRYPTO_CRC32_ARM64 CRYPTO_AES_ARM64 CRYPTO_AES_ARM64_CE CRYPTO_AES_ARM64_CE_CCM CRYPTO_AES_ARM64_CE_BLK CRYPTO_AES_ARM64_NEON_BLK CRYPTO_AES_ARM64_BS CRYPTO_CHACHA20_NEON CRYPTO_POLY1305_NEON CRYPTO_NHPOLY1305_NEON; do echo "# CONFIG_$c is not set" >> ./arch/arm64/configs/${{ env.DEFCONFIG_NAME }}; done
-          echo "# CONFIG_KSU_SUSFS_SUS_PATH is not set" >> ./arch/arm64/configs/${{ env.DEFCONFIG_NAME }}
+          echo "CONFIG_KSU_SUSFS_SUS_PATH=y" >> ./arch/arm64/configs/${{ env.DEFCONFIG_NAME }}
           echo "# CONFIG_KSU_SUSFS_OPEN_REDIRECT is not set" >> ./arch/arm64/configs/${{ env.DEFCONFIG_NAME }}
           # Re-add SUS_MOUNT susfs head (include/externs/define) to namespace.c + proc_namespace.c — v2.1 Hunk#1 + susfs_fixed fail on op8t (OPLUS context shift); guard on our own marker (NOT the usage)
           for nsf in ./fs/namespace.c ./fs/proc_namespace.c; do
