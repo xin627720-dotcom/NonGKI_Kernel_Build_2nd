@@ -165,16 +165,13 @@ jobs:
         if: always()
         shell: bash
         run: |
-          MAP=$(find $GITHUB_WORKSPACE/device_kernel -name System.map 2>/dev/null | head -1)
-          echo "System.map=$MAP"
-          if [ -n "$MAP" ]; then
-            echo "=== 256-byte window around target 0x...0b2106c1 ==="
-            grep -iE 'ffffff800b2106' "$MAP" || echo "(none in 0xb2106xx)"
-            echo "=== 4KB window (largest addr <= c1 is the misaligned symbol) ==="
-            grep -iE 'ffffff800b210[0-9a-f] ' "$MAP" | head -60
-          else
-            echo "no System.map produced"
-          fi
+          VO=$(find $GITHUB_WORKSPACE/device_kernel -name vmlinux.o 2>/dev/null | head -1)
+          echo "vmlinux.o=$VO"
+          [ -z "$VO" ] && { echo "no vmlinux.o"; exit 0; }
+          echo "=== misaligned R_AARCH64_LDST32_ABS_LO12_NC targets (count  name +addend) ==="
+          readelf -rW "$VO" 2>/dev/null | gawk '/R_AARCH64_LDST32_ABS_LO12_NC/{for(i=1;i<=NF;i++)if($i=="R_AARCH64_LDST32_ABS_LO12_NC")t=i; sv=strtonum("0x" $(t+1)); nm=$(t+2); ad=0; a=$(t+4); if($(t+3)=="+"){gsub(/^0x/,"",a); ad=strtonum("0x" a)} if((sv+ad)%4!=0){k=nm" +"ad; c[k]++}} END{for(x in c)print c[x]"  "x}' | sort -rn | head -30
+          echo "=== bonus: 4-byte OBJECT symbols at odd value (packed-field suspects) ==="
+          readelf -sW "$VO" 2>/dev/null | gawk '$4=="OBJECT" && $3==4 {val=strtonum("0x" $2); if(val%4!=0) print $2"  sz="$3"  "$8}' | head -30
 
       - name: 🔩 Pack Process
         uses: ./.github/workflows/pack-process
