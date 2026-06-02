@@ -10,7 +10,7 @@ env:
   DEVICE_CODENAME : "instantnoodle"
 
   CUSTOM_CMDS : "BRAND_SHOW_FLAG=oneplus CLANG_TRIPLE=aarch64-linux-gnu-"
-  EXTRA_CMDS : 'BRAND_SHOW_FLAG=oneplus LD=ld.lld KCFLAGS="-gdwarf-4 -mno-global-merge -Wno-unknown-warning-option -Wno-error -Wno-error=implicit-function-declaration -Wno-error=implicit-int -Wno-error=int-conversion -Wno-unused-but-set-variable -Wno-unused-variable -Wno-unused-function"'
+  EXTRA_CMDS : 'BRAND_SHOW_FLAG=oneplus LD=ld.lld KCFLAGS="-gdwarf-4 -Wno-unknown-warning-option -Wno-error -Wno-error=implicit-function-declaration -Wno-error=implicit-int -Wno-error=int-conversion -Wno-unused-but-set-variable -Wno-unused-variable -Wno-unused-function"'
 
   KERNEL_SOURCE : "https://github.com/toraidl/android_kernel_oneplus_sm8250.git"
   KERNEL_BRANCH : "op8t"
@@ -136,6 +136,8 @@ jobs:
           grep -q "susfs_get_non_sus_mnt_id_from_mnt(struct mount" ./fs/namespace.c || printf '%s\n' '#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT' 'int susfs_get_non_sus_mnt_id_from_mnt(struct mount *orig_mnt) {' 'struct mount *mnt = orig_mnt;' 'int mnt_id;' 'lock_mount_hash();' 'for (; mnt && mnt->mnt_parent && mnt != mnt->mnt_parent && mnt->mnt_id >= DEFAULT_KSU_MNT_ID; mnt = mnt->mnt_parent) { }' 'mnt_id = mnt->mnt_id;' 'unlock_mount_hash();' 'return mnt_id;' '}' '#endif' >> ./fs/namespace.c
           # echo "CONFIG_KPROBES=n" >> ./arch/arm64/configs/${{ env.DEFCONFIG_NAME }}
           sed -i 's/# CONFIG_SECCOMP is not set/CONFIG_SECCOMP=y/' ./arch/arm64/configs/${{ env.DEFCONFIG_NAME }}
+          # DIAG: force vmlinux link to emit output despite the R_AARCH64_LDST32 alignment errors so System.map is generated (to name the misaligned symbol)
+          grep -q 'noinhibit-exec' ./arch/arm64/Makefile || echo 'LDFLAGS_vmlinux += --noinhibit-exec' >> ./arch/arm64/Makefile
 
           # ---- mainline SukiSU-Ultra (sukisu) non-GKI 4.19 fixes ----
           # SukiSU is a UNITY build: ksu.c #includes ksud.c then event.c into ONE translation unit, so a stub placed in event.c collides with ksud.c's earlier implicit decl.
@@ -158,6 +160,21 @@ jobs:
 
       - name: 🚀 Build Process
         uses: ./.github/workflows/build-process
+
+      - name: 🔎 Diag misaligned symbol
+        if: always()
+        shell: bash
+        run: |
+          MAP=$(find $GITHUB_WORKSPACE/device_kernel -name System.map 2>/dev/null | head -1)
+          echo "System.map=$MAP"
+          if [ -n "$MAP" ]; then
+            echo "=== 256-byte window around target 0x...0b2106c1 ==="
+            grep -iE 'ffffff800b2106' "$MAP" || echo "(none in 0xb2106xx)"
+            echo "=== 4KB window (largest addr <= c1 is the misaligned symbol) ==="
+            grep -iE 'ffffff800b210[0-9a-f] ' "$MAP" | head -60
+          else
+            echo "no System.map produced"
+          fi
 
       - name: 🔩 Pack Process
         uses: ./.github/workflows/pack-process
