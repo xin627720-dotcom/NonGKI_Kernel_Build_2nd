@@ -33,7 +33,7 @@ env:
   KERNELSU_BRANCH : ""
 
   KERNELSU_AUTO_GET : "true" # if u want easy setting kernelsu, u can true.
-  KERNELSU_AUTO_FORK : "sukisu" # xxksu, rsuntk , next, resukisu and sukisu
+  KERNELSU_AUTO_FORK : "resukisu" # xxksu, rsuntk , next, resukisu and sukisu
 
   SUSFS_ENABLE : true
   SUSFS_FIXED : true
@@ -79,7 +79,7 @@ env:
   GENERATE_DTB: "false" # if u kernel need DTB , but cannot auto generate it. (Only Anykernel3).
   GENERATE_CHIP: "qcom" # only supported for qcom and mediatek.
 
-  BUILD_DEBUGGER: "true" # Output build errors.
+  BUILD_DEBUGGER: "false" # Output build errors.
   SKIP_PATCH: "false" # Ignore errors found in Patch Debugger.
 
   BUILD_OTHER_CONFIG: "false" # Merge config files.
@@ -136,16 +136,8 @@ jobs:
           grep -q "susfs_get_non_sus_mnt_id_from_mnt(struct mount" ./fs/namespace.c || printf '%s\n' '#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT' 'int susfs_get_non_sus_mnt_id_from_mnt(struct mount *orig_mnt) {' 'struct mount *mnt = orig_mnt;' 'int mnt_id;' 'lock_mount_hash();' 'for (; mnt && mnt->mnt_parent && mnt != mnt->mnt_parent && mnt->mnt_id >= DEFAULT_KSU_MNT_ID; mnt = mnt->mnt_parent) { }' 'mnt_id = mnt->mnt_id;' 'unlock_mount_hash();' 'return mnt_id;' '}' '#endif' >> ./fs/namespace.c
           # echo "CONFIG_KPROBES=n" >> ./arch/arm64/configs/${{ env.DEFCONFIG_NAME }}
           sed -i 's/# CONFIG_SECCOMP is not set/CONFIG_SECCOMP=y/' ./arch/arm64/configs/${{ env.DEFCONFIG_NAME }}
-          # DIAG: scripts/link-vmlinux.sh cleanup() deletes vmlinux.o when the final link fails; keep it so the readelf diag step can name the misaligned LDST32 symbol
-          sed -i '/rm -f vmlinux.o/d' ./scripts/link-vmlinux.sh
-
-          # ---- mainline SukiSU-Ultra (sukisu) non-GKI 4.19 fixes ----
-          # SukiSU is a UNITY build: ksu.c #includes ksud.c then event.c into ONE translation unit, so a stub placed in event.c collides with ksud.c's earlier implicit decl.
-          # FIX: PREPEND the defs to the TOP of ksud.c so they precede ALL uses (ksud.c calls selinux_hide at :54/:214; event.c uses strncpy_from_user_nofault at :145; ksud.c is #included before event.c).
-          #  - selinux_hide handlers: feature/selinux_hide.o is not in the non-GKI obj list -> provide no-op handlers (SUSFS still does the hiding).
-          #  - strncpy_from_user_nofault: a 5.8+ symbol SukiSU's sulog calls with no <5.8 fallback -> define for 4.19.
-          KSUD=./drivers/kernelsu/runtime/ksud.c
-          if [ -f "$KSUD" ] && ! grep -q 'OP8T_SUKISU_FIX' "$KSUD"; then printf '%s\n' '/* OP8T_SUKISU_FIX */' '#include <linux/version.h>' '#include <linux/uaccess.h>' 'void ksu_selinux_hide_handle_second_stage(void) {}' 'void ksu_selinux_hide_handle_post_fs_data(void) {}' '#if LINUX_VERSION_CODE < KERNEL_VERSION(5,8,0)' 'long strncpy_from_user_nofault(char *dst, const void __user *unsafe_addr, long count) {' 'mm_segment_t old_fs = get_fs(); long ret;' 'if (count <= 0) return 0;' 'set_fs(USER_DS); pagefault_disable();' 'ret = strncpy_from_user(dst, unsafe_addr, count);' 'pagefault_enable(); set_fs(old_fs);' 'if (ret >= count) ret = count;' 'return ret; }' '#endif' > /tmp/op8t_fix.c && cat "$KSUD" >> /tmp/op8t_fix.c && mv /tmp/op8t_fix.c "$KSUD" && echo "[op8t] prepended SukiSU non-GKI fixes to ksud.c; head:" && head -16 "$KSUD"; fi
+          # Force driver version to 40790 so the OFFICIAL com.sukisu.ultra 40790 manager matches (no version-mismatch warning). ReSukiSU computes KSU_VERSION in kernel/Kbuild.
+          for kb in ./drivers/kernelsu/Kbuild ./KernelSU/kernel/Kbuild; do [ -f "$kb" ] && sed -i 's|^KSU_VERSION := .*|KSU_VERSION := 40790|' "$kb" && echo "[op8t] forced KSU_VERSION in $kb -> $(grep -m1 '^KSU_VERSION :=' "$kb")"; done
 
           # If u want to upgrade SuSFS to 1510 and high.
           # echo "CONFIG_AUDIT=y" >> ./arch/arm64/configs/${{ env.DEFCONFIG_NAME }}
@@ -160,18 +152,6 @@ jobs:
 
       - name: 🚀 Build Process
         uses: ./.github/workflows/build-process
-
-      - name: 🔎 Diag misaligned symbol
-        if: always()
-        shell: bash
-        run: |
-          VO=$(find $GITHUB_WORKSPACE/device_kernel -name vmlinux.o 2>/dev/null | head -1)
-          echo "vmlinux.o=$VO"
-          [ -z "$VO" ] && { echo "no vmlinux.o"; exit 0; }
-          echo "=== misaligned R_AARCH64_LDST32_ABS_LO12_NC targets (count  name +addend) ==="
-          readelf -rW "$VO" 2>/dev/null | gawk '/R_AARCH64_LDST32_ABS_LO12_NC/{for(i=1;i<=NF;i++)if($i=="R_AARCH64_LDST32_ABS_LO12_NC")t=i; sv=strtonum("0x" $(t+1)); nm=$(t+2); ad=0; a=$(t+4); if($(t+3)=="+"){gsub(/^0x/,"",a); ad=strtonum("0x" a)} if((sv+ad)%4!=0){k=nm" +"ad; c[k]++}} END{for(x in c)print c[x]"  "x}' | sort -rn | head -30
-          echo "=== bonus: 4-byte OBJECT symbols at odd value (packed-field suspects) ==="
-          readelf -sW "$VO" 2>/dev/null | gawk '$4=="OBJECT" && $3==4 {val=strtonum("0x" $2); if(val%4!=0) print $2"  sz="$3"  "$8}' | head -30
 
       - name: 🔩 Pack Process
         uses: ./.github/workflows/pack-process
