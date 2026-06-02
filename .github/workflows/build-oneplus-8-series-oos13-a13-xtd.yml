@@ -33,7 +33,7 @@ env:
   KERNELSU_BRANCH : ""
 
   KERNELSU_AUTO_GET : "true" # if u want easy setting kernelsu, u can true.
-  KERNELSU_AUTO_FORK : "resukisu" # xxksu, rsuntk , next, resukisu and sukisu
+  KERNELSU_AUTO_FORK : "sukisu" # xxksu, rsuntk , next, resukisu and sukisu
 
   SUSFS_ENABLE : true
   SUSFS_FIXED : true
@@ -79,7 +79,7 @@ env:
   GENERATE_DTB: "false" # if u kernel need DTB , but cannot auto generate it. (Only Anykernel3).
   GENERATE_CHIP: "qcom" # only supported for qcom and mediatek.
 
-  BUILD_DEBUGGER: "false" # Output build errors.
+  BUILD_DEBUGGER: "true" # Output build errors.
   SKIP_PATCH: "false" # Ignore errors found in Patch Debugger.
 
   BUILD_OTHER_CONFIG: "false" # Merge config files.
