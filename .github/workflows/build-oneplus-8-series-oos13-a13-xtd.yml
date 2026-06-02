@@ -138,6 +138,12 @@ jobs:
           sed -i 's/# CONFIG_SECCOMP is not set/CONFIG_SECCOMP=y/' ./arch/arm64/configs/${{ env.DEFCONFIG_NAME }}
           # Force driver version to 40790 so the OFFICIAL com.sukisu.ultra 40790 manager matches (no version-mismatch warning). ReSukiSU computes KSU_VERSION in kernel/Kbuild.
           for kb in ./drivers/kernelsu/Kbuild ./KernelSU/kernel/Kbuild; do [ -f "$kb" ] && sed -i 's|^KSU_VERSION := .*|KSU_VERSION := 40790|' "$kb" && echo "[op8t] forced KSU_VERSION in $kb -> $(grep -m1 '^KSU_VERSION :=' "$kb")"; done
+          # Allow loading unsigned / foreign-vermagic .ko (user wants to insmod custom kernel modules). Disable MODULE_SIG_FORCE + enable MODULE_FORCE_LOAD.
+          DCFG=./arch/arm64/configs/${{ env.DEFCONFIG_NAME }}
+          sed -i 's/^CONFIG_MODULE_SIG_FORCE=y/# CONFIG_MODULE_SIG_FORCE is not set/' "$DCFG"
+          echo "# CONFIG_MODULE_SIG_FORCE is not set" >> "$DCFG"
+          echo "CONFIG_MODULE_FORCE_LOAD=y" >> "$DCFG"
+          echo "[op8t] module-sig: $(grep -E 'MODULE_SIG_FORCE|MODULE_FORCE_LOAD' "$DCFG" | tr '\n' ' ')"
 
           # If u want to upgrade SuSFS to 1510 and high.
           # echo "CONFIG_AUDIT=y" >> ./arch/arm64/configs/${{ env.DEFCONFIG_NAME }}
@@ -152,6 +158,14 @@ jobs:
 
       - name: 🚀 Build Process
         uses: ./.github/workflows/build-process
+
+      - name: 🔎 Verify module-sig off
+        if: always()
+        shell: bash
+        run: |
+          CFG=$(find $GITHUB_WORKSPACE/device_kernel -name .config -path '*out*' 2>/dev/null | head -1)
+          echo ".config=$CFG"
+          [ -n "$CFG" ] && grep -E 'MODULE_SIG_FORCE|MODULE_FORCE_LOAD|^CONFIG_MODULES=|MODULE_SIG=' "$CFG" || echo "no .config found"
 
       - name: 🔩 Pack Process
         uses: ./.github/workflows/pack-process
