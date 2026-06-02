@@ -137,6 +137,13 @@ jobs:
           # echo "CONFIG_KPROBES=n" >> ./arch/arm64/configs/${{ env.DEFCONFIG_NAME }}
           sed -i 's/# CONFIG_SECCOMP is not set/CONFIG_SECCOMP=y/' ./arch/arm64/configs/${{ env.DEFCONFIG_NAME }}
 
+          # ---- mainline SukiSU-Ultra (sukisu) non-GKI 4.19 vmlinux-link fixes ----
+          # (a) feature/selinux_hide.o is NOT in the obj list on non-GKI, but runtime/ksud.c calls these unconditionally -> no-op stubs. Placed in sulog/event.c (which does NOT call them) to avoid an implicit-decl conflict in ksud.c.
+          if [ -f ./drivers/kernelsu/sulog/event.c ]; then grep -q 'OP8T_SELINUX_HIDE_STUB' ./drivers/kernelsu/sulog/event.c || printf '%s\n' '/* OP8T_SELINUX_HIDE_STUB */' 'void ksu_selinux_hide_handle_second_stage(void) {}' 'void ksu_selinux_hide_handle_post_fs_data(void) {}' >> ./drivers/kernelsu/sulog/event.c; fi
+          # (b) sulog/event.c calls strncpy_from_user_nofault (a 5.8+ symbol) with no <5.8 fallback -> define it for 4.19. Placed in runtime/ksud.c (which does NOT call it) to avoid an implicit-decl conflict in event.c.
+          if [ -f ./drivers/kernelsu/runtime/ksud.c ]; then grep -q 'OP8T_STRNCPY_NOFAULT' ./drivers/kernelsu/runtime/ksud.c || printf '%s\n' '/* OP8T_STRNCPY_NOFAULT */' '#include <linux/version.h>' '#if LINUX_VERSION_CODE < KERNEL_VERSION(5,8,0)' '#include <linux/uaccess.h>' 'long strncpy_from_user_nofault(char *dst, const void __user *unsafe_addr, long count) {' 'mm_segment_t old_fs = get_fs();' 'long ret;' 'if (count <= 0) return 0;' 'set_fs(USER_DS);' 'pagefault_disable();' 'ret = strncpy_from_user(dst, unsafe_addr, count);' 'pagefault_enable();' 'set_fs(old_fs);' 'if (ret >= count) ret = count;' 'return ret;' '}' '#endif' >> ./drivers/kernelsu/runtime/ksud.c; fi
+          echo "[op8t] SukiSU non-GKI link fixes applied:"; tail -4 ./drivers/kernelsu/sulog/event.c; echo '----'; tail -18 ./drivers/kernelsu/runtime/ksud.c
+
           # If u want to upgrade SuSFS to 1510 and high.
           # echo "CONFIG_AUDIT=y" >> ./arch/arm64/configs/${{ env.DEFCONFIG_NAME }}
 
