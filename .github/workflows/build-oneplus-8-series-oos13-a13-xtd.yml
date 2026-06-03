@@ -136,14 +136,21 @@ jobs:
           grep -q "susfs_get_non_sus_mnt_id_from_mnt(struct mount" ./fs/namespace.c || printf '%s\n' '#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT' 'int susfs_get_non_sus_mnt_id_from_mnt(struct mount *orig_mnt) {' 'struct mount *mnt = orig_mnt;' 'int mnt_id;' 'lock_mount_hash();' 'for (; mnt && mnt->mnt_parent && mnt != mnt->mnt_parent && mnt->mnt_id >= DEFAULT_KSU_MNT_ID; mnt = mnt->mnt_parent) { }' 'mnt_id = mnt->mnt_id;' 'unlock_mount_hash();' 'return mnt_id;' '}' '#endif' >> ./fs/namespace.c
           # echo "CONFIG_KPROBES=n" >> ./arch/arm64/configs/${{ env.DEFCONFIG_NAME }}
           sed -i 's/# CONFIG_SECCOMP is not set/CONFIG_SECCOMP=y/' ./arch/arm64/configs/${{ env.DEFCONFIG_NAME }}
-          # Force driver version to 40790 so the OFFICIAL com.sukisu.ultra 40790 manager matches (no version-mismatch warning). ReSukiSU computes KSU_VERSION in kernel/Kbuild.
-          for kb in ./drivers/kernelsu/Kbuild ./KernelSU/kernel/Kbuild; do [ -f "$kb" ] && sed -i 's|^KSU_VERSION := .*|KSU_VERSION := 40790|' "$kb" && echo "[op8t] forced KSU_VERSION in $kb -> $(grep -m1 '^KSU_VERSION :=' "$kb")"; done
+          # Force driver version to 40796 so the OFFICIAL com.sukisu.ultra 40796 manager matches (no version-mismatch warning). ReSukiSU computes KSU_VERSION in kernel/Kbuild.
+          for kb in ./drivers/kernelsu/Kbuild ./KernelSU/kernel/Kbuild; do [ -f "$kb" ] && sed -i 's|^KSU_VERSION := .*|KSU_VERSION := 40796|' "$kb" && echo "[op8t] forced KSU_VERSION in $kb -> $(grep -m1 '^KSU_VERSION :=' "$kb")"; done
           # Allow loading unsigned / foreign-vermagic .ko (user wants to insmod custom kernel modules). Disable MODULE_SIG_FORCE + enable MODULE_FORCE_LOAD.
           DCFG=./arch/arm64/configs/${{ env.DEFCONFIG_NAME }}
           sed -i 's/^CONFIG_MODULE_SIG_FORCE=y/# CONFIG_MODULE_SIG_FORCE is not set/' "$DCFG"
           echo "# CONFIG_MODULE_SIG_FORCE is not set" >> "$DCFG"
           echo "CONFIG_MODULE_FORCE_LOAD=y" >> "$DCFG"
           echo "[op8t] module-sig: $(grep -E 'MODULE_SIG_FORCE|MODULE_FORCE_LOAD' "$DCFG" | tr '\n' ' ')"
+
+          # === STOCK-DISGUISE: make uname + /proc/version byte-identical to the real ColorOS F.73 kernel (hide self-built CI kernel) ===
+          echo "KBUILD_BUILD_USER=root" >> $GITHUB_ENV
+          echo "KBUILD_BUILD_HOST=dg02-pool06-kvm44" >> $GITHUB_ENV
+          echo "KBUILD_BUILD_TIMESTAMP=Wed Feb 21 19:12:51 CST 2024" >> $GITHUB_ENV
+          sed -i 's|"$CC_VERSION, $LD_VERSION"|"clang version 10.0.7 for Android NDK, GNU ld (binutils-2.27-bd24d23f) 2.27.0.20170315"|' ./scripts/mkcompile_h
+          echo "[op8t] stock-disguise: $(grep -m1 'LINUX_COMPILER' ./scripts/mkcompile_h)"
 
           # If u want to upgrade SuSFS to 1510 and high.
           # echo "CONFIG_AUDIT=y" >> ./arch/arm64/configs/${{ env.DEFCONFIG_NAME }}
